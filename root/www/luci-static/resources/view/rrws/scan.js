@@ -67,6 +67,11 @@ var callRRWS = rrwsDeclare({
 	method: 'accountStatus'
 });
 
+var callDeviceCheck = rrwsDeclare({
+	object: 'luci.rrws',
+	method: 'deviceCheck'
+});
+
 var callRegister = rrwsDeclare({
 	object: 'luci.rrws',
 	method: 'register'
@@ -543,6 +548,50 @@ var view = this;
 		headerEl.appendChild(accStatusRow);
 		container.appendChild(headerEl);
 
+		// "Аккаунт WARP" section and the RouteRich hardware banner sit side by
+		// side on wide screens: the banner is a single clickable tile (logo +
+		// "Информация" label, per the reference - one big button) to the LEFT
+		// of the account block. On narrow screens (phones) it spans the full
+		// width so it doesn't float alone above the account block. Which side
+		// it links to is the vendor page. Hidden on authorized hardware (24:0F:5E).
+		var headerRow = E('div', { 'style': 'display:flex; align-items:stretch; gap:14px; margin-bottom:14px; flex-wrap:wrap' });
+		container.appendChild(headerRow);
+		var deviceBanner = E('a', { 'class': 'cbi-section', 'href': 'https://routerich.ru/qr', 'target': '_blank', 'rel': 'noopener', 'style': 'display:none; text-decoration:none; cursor:pointer; outline:none; border:1px solid #d9534f; border-radius:4px; padding:10px 12px; box-sizing:border-box; align-items:center; gap:6px' });
+		var dbLogo = E('img', { 'src': '/luci-static/resources/rrws/logo.png', 'style': 'width:40px; height:40px; object-fit:contain; flex-shrink:0' });
+		deviceBanner.appendChild(dbLogo);
+		var dbLabel = E('span', { 'style': 'color:#4a9eff; font-weight:600' }, 'Информация');
+		deviceBanner.appendChild(dbLabel);
+		headerRow.appendChild(deviceBanner);
+		deviceBanner._narrow = (window.innerWidth || document.documentElement.clientWidth) < 700;
+		var layoutBanner = function() {
+			if (!deviceBanner._narrow) {
+				deviceBanner.style.flexDirection = 'column';
+				deviceBanner.style.justifyContent = 'center';
+				deviceBanner.style.flex = '0 0 132px';
+			} else {
+				deviceBanner.style.flexDirection = 'row';
+				deviceBanner.style.justifyContent = 'center';
+				deviceBanner.style.flex = '1 1 100%';
+			}
+		};
+		layoutBanner();
+		window.addEventListener('resize', function() {
+			var n = (window.innerWidth || document.documentElement.clientWidth) < 700;
+			if (n !== deviceBanner._narrow) {
+				deviceBanner._narrow = n;
+				layoutBanner();
+			}
+		});
+
+		callDeviceCheck().then(function(dev) {
+			if (dev && dev.authorized === false) {
+				deviceBanner.style.display = 'flex';
+				console.log('[rrws] unsupported device (no ' + (dev.oui || '24:0F:5E') + ' OUI):', JSON.stringify(dev.macs || {}));
+			}
+		}).catch(function(e) {
+			console.error('[rrws] deviceCheck err', e.message);
+		});
+
 		callAppVersion().then(function(v) {
 			appVerEl.textContent = (v && v.version) ? v.version : '?';
 		}).catch(function(e) {
@@ -551,10 +600,10 @@ var view = this;
 		});
 
 		// account info
-		var accSection = E('div', { 'class': 'cbi-section', 'style': 'margin-bottom: 14px; border:1px solid #ddd; border-radius:4px; padding:10px 12px' });
-		var accHead = E('div', { 'style': 'display:flex; align-items:flex-start; justify-content:space-between; gap:16px' });
+		var accSection = E('div', { 'class': 'cbi-section', 'style': 'flex:1 1 auto; min-width:0; border:1px solid #ddd; border-radius:4px; padding:10px 12px' });
+		var accHead = E('div', { 'style': 'display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:10px 16px' });
 		accHead.appendChild(E('h3', {}, 'Аккаунт WARP'));
-		var accBtns = E('div', { 'style': 'display:flex; flex-direction:row; flex-wrap:wrap; justify-content:flex-end; flex-shrink:0; gap:8px' });
+		var accBtns = E('div', { 'style': 'display:flex; flex-direction:row; flex-wrap:wrap; justify-content:flex-end; flex:1 1 auto; min-width:0; gap:8px' });
 		accHead.appendChild(accBtns);
 		accSection.appendChild(accHead);
 		var accBody = E('div', { 'style': 'display:flex; align-items:flex-start; gap:16px; margin-top:8px' });
@@ -565,7 +614,7 @@ var view = this;
 		accInfo.appendChild(accHint);
 		accBody.appendChild(accInfo);
 		accSection.appendChild(accBody);
-		container.appendChild(accSection);
+		headerRow.appendChild(accSection);
 
 		var renderAccount = function(account) {
 			console.log('[rrws] account:', JSON.stringify(account));

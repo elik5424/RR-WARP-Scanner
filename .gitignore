@@ -18,3 +18,6 @@ scan.js.backup_*
 
 # RRWS2 (second version, separate repo)
 rrws2/
+
+# Local dev context (contains secrets) - never pushed
+AGENTS.md

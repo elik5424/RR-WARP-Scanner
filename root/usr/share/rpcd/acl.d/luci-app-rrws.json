@@ -3,7 +3,7 @@
 		"description": "Grant access to the WARP endpoint scanner",
 		"read": {
 			"ubus": {
-				"luci.rrws": [ "accountStatus", "confBase", "version", "scanStatus", "scanResult", "scanLog", "getSettings", "speedAvailable", "speedStatus", "speedResult", "speedLog", "registerLog" ]
+				"luci.rrws": [ "deviceCheck", "accountStatus", "confBase", "version", "scanStatus", "scanResult", "scanLog", "getSettings", "speedAvailable", "speedStatus", "speedResult", "speedLog", "registerLog" ]
 			},
 			"uci": [ "network" ]
 		},

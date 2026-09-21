@@ -119,6 +119,35 @@ function account_status() {
 	return { registered: true, id, peer_public_key: peer, address: addr, private_key: priv };
 }
 
+// RouteRich hardware check: all RouteRich routers carry the 24:0F:5E OUI on
+// their physical NICs. We read every candidate netdev we know of and report
+// the ones present; authorized = at least one of them starts with 24:0F:5E.
+// board_name / DISTRIB_ID are informational diagnostics only (for the case a
+// build names interfaces differently) - they never flip `authorized`.
+const RRWS_OUI = '24:0f:5e';
+function device_check() {
+	const candidates = [ 'br-lan', 'eth0', 'lan1', 'lan2', 'lan3', 'eth1' ];
+	const macs = {};
+	let authorized = false;
+	for (let i = 0; i < length(candidates); i++) {
+		const mac = trim(read_file(`/sys/class/net/${candidates[i]}/address`) ?? '');
+		if (!mac) continue;
+		macs[candidates[i]] = mac;
+		// /sys adds are always lowercase hex; compare the first three octets
+		if (substr(mac, 0, 8) == RRWS_OUI)
+			authorized = true;
+	}
+	const board = trim(read_file('/tmp/sysinfo/board_name') ?? '');
+	const release = read_file('/etc/openwrt_release') ?? '';
+	let distrib_id = '';
+	const rlines = split(release, '\n');
+	for (let i = 0; i < length(rlines); i++) {
+		const m = match(rlines[i], /^DISTRIB_ID='?([^']+)'?/);
+		if (m) { distrib_id = trim(m[1]); break; }
+	}
+	return { authorized, macs, oui: '24:0F:5E', board_name: board, distrib_id };
+}
+
 function uci_get(sel) {
 	return trim(command(`uci get ${sel} 2>/dev/null`)) ?? '';
 }
@@ -204,6 +233,16 @@ const methods = {
 			const s = account_status();
 			s.registering = register_running();
 			return s;
+		}
+	},
+
+	// RouteRich hardware check for the device banner: authorized=false when no
+	// candidate interface carries the 24:0F:5E OUI. The UI shows a small notice
+	// with a logo + link when the package runs on non-RouteRich hardware.
+	deviceCheck: {
+		call: function() {
+			rpclog('deviceCheck');
+			return device_check();
 		}
 	},
 
