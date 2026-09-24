@@ -1,0 +1,79 @@
+name: Build luci-app-rrws
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare package structure
+        run: |
+          mkdir -p build/files/usr/bin
+          mkdir -p build/files/usr/share/rpcd/ucode
+          mkdir -p build/files/usr/share/rpcd/acl.d
+          mkdir -p build/files/usr/share/luci/menu.d
+          mkdir -p build/files/www/luci-static/resources/view/rrws
+
+          # Копируем файлы из root/, если он есть, иначе из корня
+          if [ -d root ]; then
+            cp -r root/* build/files/ 2>/dev/null || true
+          fi
+
+          # Копируем бинарные скрипты
+          cp usr/bin/* build/files/usr/bin/ 2>/dev/null || true
+
+          # Копируем ucode
+          cp luci.rrws build/files/usr/share/rpcd/ucode/ 2>/dev/null || true
+
+          # Копируем ACL
+          cp luci-app-rrws.json build/files/usr/share/rpcd/acl.d/ 2>/dev/null || true
+
+          # Копируем menu
+          cp rrws.json build/files/usr/share/luci/menu.d/ 2>/dev/null || true
+
+          # Копируем JS
+          cp scan.js build/files/www/luci-static/resources/view/rrws/ 2>/dev/null || true
+
+          # Права
+          chmod -R 755 build/files
+
+      - name: Build control
+        run: |
+          mkdir -p build/control
+          cat > build/control/control << 'EOF'
+          Package: luci-app-rrws
+          Version: 0.2.1-r39
+          Depends: luci-base, rpcd-mod-ucode, amneziawg-tools, kmod-amneziawg, jq, curl
+          Source: https://github.com/kkkkCampbell/RR-WARP-Scanner
+          SourceName: luci-app-rrws
+          License: Apache-2.0
+          Section: luci
+          Section: luci
+          Architecture: all
+          Installed-Size: 100
+          Description: RR WARP Scanner for RouteRich (LuCI app)
+          EOF
+          # Убираем ведущие пробелы (heredoc с отступом)
+          sed -i 's/^          //' build/control/control
+
+      - name: Pack ipk
+        run: |
+          cd build
+          # control.tar.gz
+          (cd control && tar -czf ../control.tar.gz .)
+          # data.tar.gz
+          (cd files && tar -czf ../data.tar.gz .)
+          # debian-binary
+          echo "2.0" > debian-binary
+          # Итоговый ipk
+          tar -czf ../luci-app-rrws_0.2.1-r39_all.ipk ./debian-binary ./control.tar.gz ./data.tar.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: luci-app-rrws-ipk
+          path: luci-app-rrws_0.2.1-r39_all.ipk
